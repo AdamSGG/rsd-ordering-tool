@@ -1,0 +1,6 @@
+# Cloudflare Pages configuration
+name = "rsd-ordering-tool"
+compatibility_date = "2024-01-01"
+
+[env.production]
+# Set ANTHROPIC_API_KEY as a secret via: wrangler secret put ANTHROPIC_API_KEY
