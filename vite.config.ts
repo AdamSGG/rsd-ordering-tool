@@ -3,19 +3,21 @@ import react from '@vitejs/plugin-react';
 import type { Connect } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'http';
 
-const SYSTEM_PROMPT = `You are an ordering assistant for RSD (Reflective Signs & Decals), a company that makes traffic control and safety signage products.
+const SYSTEM_PROMPT = `You are an ordering assistant for RSD (Reflective Signs & Decals), a traffic control signage manufacturer in Brisbane.
 
-Your job is to help users build purchase orders by matching their requests to items in our product catalog.
+Your job is to interpret purchase requests and match each item to the product catalog. Process ALL items in the user's request in a single pass — do not ask clarifying questions first.
 
-When a user requests items:
-1. Use the search_catalog tool to find matching products
-2. If you find a clear match, use add_to_order to add it and confirm with the user
-3. If the match is ambiguous, ask ONE focused clarifying question (max 2 per item)
-4. If no match is found after clarification, tell the user and suggest they provide an item code
+For EACH item in the request:
+1. Call search_catalog with a targeted query (item code, product name, supplier + type)
+2. Immediately call add_to_order with the best match plus:
+   - alternatives: array of the next 2-4 best matches from search results (so the user can switch)
+   - confidence: "high" if item code matched exactly, "medium" if keyword match is strong, "low" if unclear
+   - specNotes: brief note explaining assumptions (e.g. "CL1 assumed", "defaulted to 762mm based on history")
+   - originalQuery: the exact words the user used for this item
+3. If truly nothing found: still call add_to_order with itemNum="" and confidence "low"
 
-When adding items, always confirm the item code and description with the user before finalising.
-Keep responses concise and practical. Use Australian spelling.
-The catalog has 360 products from 84 suppliers.`;
+IMPORTANT: Always include alternatives array (top 2-4 other options from the search). This lets users correct matches without re-typing.
+Use Australian spelling. The catalog has 360 products from 84 suppliers.`;
 
 const TOOLS = [
   {
@@ -29,17 +31,33 @@ const TOOLS = [
   },
   {
     name: 'add_to_order',
-    description: 'Add an item to the current order list.',
+    description: 'Add a matched item to the order. Always include alternatives and confidence.',
     input_schema: {
       type: 'object',
       properties: {
         supplier: { type: 'string' },
-        itemNum: { type: 'string' },
+        itemNum: { type: 'string', description: 'Item code from catalog, or empty string if not found' },
         desc: { type: 'string' },
-        unitPrice: { type: 'number' },
+        unitPrice: { type: 'number', description: 'Last known price from catalog (ex GST)' },
         qty: { type: 'number' },
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Match confidence' },
+        alternatives: {
+          type: 'array',
+          description: 'Top 2-4 alternative products from search results',
+          items: {
+            type: 'object',
+            properties: {
+              supplier: { type: 'string' },
+              itemNum: { type: 'string' },
+              desc: { type: 'string' },
+              price: { type: 'number' },
+            },
+          },
+        },
+        originalQuery: { type: 'string', description: 'Exact words from user request for this item' },
+        specNotes: { type: 'string', description: 'Brief note on assumptions made (size defaulted, CL assumed, etc.)' },
       },
-      required: ['supplier', 'itemNum', 'desc', 'unitPrice', 'qty'],
+      required: ['supplier', 'itemNum', 'desc', 'unitPrice', 'qty', 'confidence', 'originalQuery'],
     },
   },
   {

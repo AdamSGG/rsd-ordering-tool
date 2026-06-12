@@ -16,17 +16,18 @@ export interface Supplier {
 }
 
 export interface OrderItem {
+  id: string;
   supplier: string;
   itemNum: string;
   desc: string;
   unitPrice: number;
   qty: number;
+  confidence: 'high' | 'medium' | 'low';
+  alternatives: Product[];
+  originalQuery: string;
+  specNotes: string;
   supplierDetails?: Supplier;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
+  corrected?: boolean;
 }
 
 export interface OrderGroup {
@@ -35,3 +36,10 @@ export interface OrderGroup {
   items: OrderItem[];
   subtotal: number;
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string | unknown[];
+}
+
+export type AppStep = 'interpret' | 'order';
